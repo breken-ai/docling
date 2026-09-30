@@ -2033,10 +2033,37 @@ class MsWordDocumentBackend(DeclarativeDocumentBackend):
                 )
             elif isinstance(item, Run):
                 content.append(
-                    (item.text, self._get_format_from_run(item, paragraph), None)
+                    (
+                        self._get_run_text(item),
+                        self._get_format_from_run(item, paragraph),
+                        None,
+                    )
                 )
 
         return content
+
+    @staticmethod
+    def _get_run_text(run: Run) -> str:
+        """Return a run's text, including the base text of a ruby (phonetic guide).
+
+        ``Run.text`` skips ``w:ruby``, so text set with Word's Phonetic Guide,
+        common in Japanese and Chinese documents, would vanish. Its base text
+        in ``w:rubyBase`` is the content; the guide in ``w:rt`` is left out.
+        """
+        text = ""
+        for child in run._r.xpath(
+            "w:br | w:cr | w:noBreakHyphen | w:ptab | w:t | w:tab | w:ruby"
+        ):
+            if etree.QName(child).localname == "ruby":
+                text += "".join(
+                    Run(base_run, run._parent).text
+                    for base_run in child.iterfind(
+                        f"{_W_NS_CLARK}rubyBase/{_W_NS_CLARK}r"
+                    )
+                )
+            else:
+                text += str(child)
+        return text
 
     def _get_paragraph_text(self, paragraph: Paragraph) -> str:
         return "".join(

@@ -906,6 +906,35 @@ def test_block_sdt_tables_are_extracted():
     assert phase_2_idx < table_idxs[1]
 
 
+def test_ruby_base_text_is_kept(tmp_path):
+    """Text set with Word's Phonetic Guide keeps its base text.
+
+    ``Run.text`` skips ``w:ruby``, so the words under a phonetic guide vanished
+    from paragraphs, headings and list items. The guide itself is left out.
+    """
+    w = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+    ruby_run = (
+        f"<w:r {w}><w:ruby><w:rubyPr/>"
+        "<w:rt><w:r><w:t>\u3068\u3046\u304d\u3087\u3046</w:t></w:r></w:rt>"
+        "<w:rubyBase><w:r><w:t>\u6771\u4eac</w:t></w:r></w:rubyBase>"
+        "</w:ruby></w:r>"
+    )
+
+    document = Document()
+    heading = document.add_heading("", level=2)
+    heading._p.append(etree.fromstring(ruby_run))
+    paragraph = document.add_paragraph("I live in ")
+    paragraph._p.append(etree.fromstring(ruby_run))
+    paragraph.add_run(".")
+    item = document.add_paragraph(style="List Bullet")
+    item._p.append(etree.fromstring(ruby_run))
+
+    doc = _convert_built(document, tmp_path)
+
+    texts = [text_item.text for text_item in doc.texts]
+    assert texts == ["\u6771\u4eac", "I live in \u6771\u4eac.", "\u6771\u4eac"]
+
+
 def _table_with_grid_before(
     tmp_path,
     *,
